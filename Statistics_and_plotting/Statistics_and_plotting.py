@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# coding: utf-8
-
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -63,9 +60,9 @@ def independent_samples():
 
     else:
         print('Error: The group_id column has to contain at least two different group_ids for this selection.\
-        \nDid you mean to perform a one-sample test?')
-
-
+        \nDid you mean to perform a one-sample test?')   
+   
+        
 # 1.2 Mixed-model ANOVA (contributed by Konstantin Kobel):
 def mixed_model_ANOVA():
     global d_main, data_col, group_col, subject_col, session_col, l_groups, l_sessions, performed_test
@@ -115,19 +112,41 @@ def mixed_model_ANOVA():
 def get_customization_values():
     global distance_stars_to_brackets, distance_brackets_to_data, fontsize_stars_bold
     global linewidth_annotations, fontsize_stars, annotation_brackets_factor
+    global l_xlabel_order, l_hue_order
+    
     distance_stars_to_brackets = set_distance_stars_to_brackets.value
     distance_brackets_to_data = set_distance_brackets_to_data.value
     fontsize_stars = set_fontsize_stars.value
     linewidth_annotations = set_linewidth_annotations.value
+    
     if set_stars_fontweight_bold.value == True:
         fontsize_stars_bold = 'bold'
     else:
         fontsize_stars_bold = 'normal'
+    
     if select_bracket_no_bracket.value == 'Brackets':
         annotation_brackets_factor = 1
     else:
         annotation_brackets_factor = 0
 
+    l_xlabel_order = []
+    l_xlabel_string = set_xlabel_order.value
+    
+    while ', ' in l_xlabel_string:
+        l_xlabel_order.append(l_xlabel_string[:l_xlabel_string.index(', ')])
+        l_xlabel_string = l_xlabel_string[l_xlabel_string.index(', ')+2:]
+
+    l_xlabel_order.append(l_xlabel_string)
+    
+    l_hue_order = []
+    l_hue_string = set_hue_order.value
+    
+    while ', ' in l_hue_string:
+        l_hue_order.append(l_hue_string[:l_hue_string.index(', ')])
+        l_hue_string = l_hue_string[l_hue_string.index(', ')+2:]
+
+    l_hue_order.append(l_hue_string)
+    
         
 # 2.2 Get l_stats_to_annotate:
 # 2.2.1 For independent samples:
@@ -204,8 +223,8 @@ def annotate_stats_independent_samples(l_stats_to_annotate):
 
         for group1, group2 in l_stats_to_annotate:
 
-            x1 = l_group_order.index(group1)
-            x2 = l_group_order.index(group2)
+            x1 = l_xlabel_order.index(group1)
+            x2 = l_xlabel_order.index(group2)
             
             stars = get_stars_str(df_temp, group1, group2)
 
@@ -247,7 +266,7 @@ def annotate_stats_mma_pointplot(l_stats_to_annotate):
             brackets_height = distance_brackets_to_data*0.5*annotation_brackets_factor
             x_shift_annotation_text = brackets_height + distance_brackets_to_data*0.5*distance_stars_to_brackets            
             
-            x = l_sessions.index(session_id) + x_shift_annotation_line
+            x = l_xlabel_order.index(session_id) + x_shift_annotation_line
             y1=df.loc[(df[group_col] == group1) & (df[session_col] == session_id), data_col].mean()
             y2=df.loc[(df[group_col] == group2) & (df[session_col] == session_id), data_col].mean()            
             
@@ -298,9 +317,9 @@ def annotate_stats_mma_violinplot(l_stats_to_annotate):
             y = max_total + y_shift_annotation_line + y_shift_annotation_line*n_previous_annotations_in_this_session_id*3
             
             width = 0.8
-            x_base = l_sessions.index(session_id) - width/2 + width/(2*len(l_groups))
-            x1 = x_base + width/len(l_groups)*l_groups.index(group1)
-            x2 = x_base + width/len(l_groups)*l_groups.index(group2)
+            x_base = l_xlabel_order.index(session_id) - width/2 + width/(2*len(l_hue_order))
+            x1 = x_base + width/len(l_hue_order)*l_hue_order.index(group1)
+            x2 = x_base + width/len(l_hue_order)*l_hue_order.index(group2)
             
             stars = get_stars_str(df_temp.loc[df_temp[session_col] == session_id], group1, group2)
 
@@ -358,14 +377,19 @@ def on_stats_button_clicked(b):
         if len(select_annotations_vbox.children) == 0:
                 select_annotations_vbox.children = select_annotations_vbox.children + checkboxes_to_add
         
+        create_group_order_text()
+        create_ylims()
+        
         create_group_color_pickers()
+        
+        
         
         display(d_main['summary']['pairwise_comparisons'])   
 
         
 # 3.2 Plotting button
 def on_plotting_button_clicked(b):
-    global l_group_order 
+    global l_xlabel_order 
     # Update all variables according to the customization input of the user
     get_customization_values()
     
@@ -373,18 +397,15 @@ def on_plotting_button_clicked(b):
         output.clear_output()
         
         plotting_button.description = 'Refresh the plot'
-        
-        # Could also be modyfied
-        l_group_order = l_groups
-            
+                   
         if select_palette_or_individual_color.value == 0:
             color_palette = select_color_palettes.value
         else:
             color_palette = {}
             for group_id in l_groups:
                 color_palette[group_id] = group_colors_vbox.children[l_groups.index(group_id)].value
-        
-        fig = plt.figure(figsize=(14,8), facecolor='white')
+             
+        fig = plt.figure(figsize=(set_fig_width.value/2.54 , set_fig_height.value/2.54), facecolor='white')
         ax = fig.add_subplot()
         
         for axis in ['top', 'right']:
@@ -398,25 +419,50 @@ def on_plotting_button_clicked(b):
 
         if select_test.value == 0: # independent_samples()
             if select_plot.value == 0:
-                sns.stripplot(data=df, x=group_col, y=data_col, order=l_group_order, palette=color_palette, size=set_marker_size.value)
+                sns.stripplot(data=df, x=group_col, y=data_col, order=l_xlabel_order, palette=color_palette, size=set_marker_size.value)
             elif select_plot.value == 1:
-                sns.boxplot(data=df, x=group_col, y=data_col, order=l_group_order, palette=color_palette)
+                sns.boxplot(data=df, x=group_col, y=data_col, order=l_xlabel_order, palette=color_palette)
             elif select_plot.value == 2:
-                sns.boxplot(data=df, x=group_col, y=data_col, order=l_group_order, palette=color_palette)
-                sns.stripplot(data=df, x=group_col, y=data_col, color='k', order=l_group_order, size=set_marker_size.value)
+                sns.boxplot(data=df, x=group_col, y=data_col, order=l_xlabel_order, palette=color_palette, showfliers=False)
+                sns.stripplot(data=df, x=group_col, y=data_col, color='k', order=l_xlabel_order, size=set_marker_size.value)
+            elif select_plot.value == 3:
+                sns.violinplot(data=df, x=group_col, y=data_col, order=l_xlabel_order, palette=color_palette, cut=0)
+                sns.stripplot(data=df, x=group_col, y=data_col, color='k', order=l_xlabel_order, size=set_marker_size.value)                
             else:
                 print("Function not implemented. Please go and annoy Dennis to finally do it")
-        
+                  
         elif select_test.value == 2: # mixed_model_ANOVA()
             if select_plot.value == 0:
-                sns.pointplot(data=df, x=session_col, y=data_col, hue=group_col, palette=color_palette, dodge=True, ci='sd', err_style='bars', capsize=0)
-                plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
+                sns.pointplot(data=df, x=session_col, y=data_col, order=l_xlabel_order, hue=group_col, hue_order=l_hue_order,
+                              palette=color_palette, dodge=True, ci='sd', err_style='bars', capsize=0)  
+            elif select_plot.value == 1:
+                sns.boxplot(data=df, x=session_col, y=data_col, order=l_xlabel_order, hue=group_col, hue_order=l_hue_order,
+                            palette=color_palette)
+            elif select_plot.value == 2:
+                sns.boxplot(data=df, x=session_col, y=data_col, order=l_xlabel_order, hue=group_col, hue_order=l_hue_order,
+                            palette=color_palette, showfliers=False)
+                sns.stripplot(data=df, x=session_col, y=data_col, order=l_xlabel_order, hue=group_col, hue_order=l_hue_order,
+                              dodge=True, color='k', size=set_marker_size.value)
             elif select_plot.value == 3:
-                sns.violinplot(x=session_col, y=data_col, data=df, hue=group_col, width=0.8, cut=0, palette=color_palette)
-                plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
+                sns.violinplot(data=df, x=session_col, y=data_col, order=l_xlabel_order, hue=group_col, hue_order=l_hue_order,
+                               width=0.8, cut=0, palette=color_palette)
+                sns.stripplot(data=df, x=session_col, y=data_col, order=l_xlabel_order, hue=group_col, hue_order=l_hue_order,
+                              dodge=True, color='k', size=set_marker_size.value)
             else:
                 print("Function not implemented. Please go and annoy Dennis to finally do it")
-        
+                          
+            if set_show_legend.value == True:
+                if select_plot.value == 0:
+                    ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
+                
+                elif select_plot.value in [1, 2, 3]:
+                    handles, labels = ax.get_legend_handles_labels()
+                    new_handles = handles[:len(l_hue_order)]
+                    new_labels = labels[:len(l_hue_order)]
+                    ax.legend(new_handles, new_labels, loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
+            else:
+                ax.get_legend().remove()
+
         else:
             print("Function not implemented. Please go and annoy Dennis to finally do it")
         
@@ -428,13 +474,18 @@ def on_plotting_button_clicked(b):
             l_stats_to_annotate = get_l_stats_to_annotate_mma()
             if select_plot.value == 0:
                 annotate_stats_mma_pointplot(l_stats_to_annotate)
-            elif select_plot.value == 3:
+            elif select_plot.value in [1, 2, 3]:
                 annotate_stats_mma_violinplot(l_stats_to_annotate)
             else:
                 print("Function not implemented. Please go and annoy Dennis to finally do it")
             
         plt.ylabel(set_yaxis_label_text.value, fontsize=set_yaxis_label_fontsize.value, color=set_yaxis_label_color.value)
         plt.xlabel(set_xaxis_label_text.value, fontsize=set_xaxis_label_fontsize.value, color=set_xaxis_label_color.value)        
+               
+        if set_yaxis_scaling_mode.value == 1:
+            plt.ylim(set_yaxis_lower_lim.value, set_yaxis_upper_lim.value)
+        
+        plt.tight_layout()
         
         if save_plot == True:
             plt.savefig('customized_plot.png', dpi=300)
@@ -562,11 +613,11 @@ def create_accordion_to_customize_the_plot():
     customize_annotations_accordion.set_title(1, 'Customize annotation features')
     
     # Second accordion will contain widgets to customize the axes
-    customize_yaxis_hbox = create_hbox_y_axis()
-    customize_xaxis_hbox = create_hbox_x_axis()
+    customize_yaxis_vbox = create_vbox_y_axis()
+    customize_xaxis_vbox = create_vbox_x_axis()
     customize_both_axes_hbox = create_hbox_both_axes()
 
-    customize_axes_accordion = widgets.Accordion(children=[customize_yaxis_hbox, customize_xaxis_hbox, customize_both_axes_hbox])
+    customize_axes_accordion = widgets.Accordion(children=[customize_yaxis_vbox, customize_xaxis_vbox, customize_both_axes_hbox])
     customize_axes_accordion.set_title(0, 'y-axis') 
     customize_axes_accordion.set_title(1, 'x-axis')
     customize_axes_accordion.set_title(2, 'common features')
@@ -599,21 +650,48 @@ def create_accordion_to_customize_the_plot():
 
 # 4.4.2 Customization axes:
 # 4.4.2.1 Create an HBox that allows customization of the y-axis
-def create_hbox_y_axis():
-    global set_yaxis_label_text, set_yaxis_label_fontsize, set_yaxis_label_color
+def create_vbox_y_axis():
+    global set_yaxis_label_text, set_yaxis_label_fontsize, set_yaxis_label_color, set_yaxis_scaling_mode, set_yaxis_lower_lim, set_yaxis_upper_lim
+    
     set_yaxis_label_text = widgets.Text(value='data', placeholder='data', description='y-axis title:', layout={'width': 'auto'})
     set_yaxis_label_fontsize = widgets.IntSlider(value=12, min=8, max=40, step=1, description='fontsize:')
     set_yaxis_label_color = widgets.ColorPicker(concise=False, description='font color', value='#000000')
-    return HBox([set_yaxis_label_text, set_yaxis_label_fontsize, set_yaxis_label_color])
+    yaxis_hbox1 = HBox([set_yaxis_label_text, set_yaxis_label_fontsize, set_yaxis_label_color])
+    
+    set_yaxis_scaling_mode = widgets.RadioButtons(description = 'Please select whether you want to use automatic or manual scaling of the yaxis:', 
+                                                              options=[('Use automatic scaling', 0), ('Use manual scaling', 1)],
+                                                              value=0, layout={'width': '700px', 'height': '75px'}, style={'description_width': 'initial'})
+    
+    set_yaxis_lower_lim = widgets.FloatText(value=0.0, description='lower limit:', style={'description_width': 'initial'})
+    set_yaxis_upper_lim = widgets.FloatText(value=0.0, description='upper limit:', style={'description_width': 'initial'})
+    yaxis_hbox2 = HBox([set_yaxis_lower_lim, set_yaxis_upper_lim])
+
+    return VBox([yaxis_hbox1, set_yaxis_scaling_mode, yaxis_hbox2])
 
 
 # 4.4.2.2 Create an HBox that allows customization of the x-axis
-def create_hbox_x_axis():
-    global set_xaxis_label_text, set_xaxis_label_fontsize, set_xaxis_label_color
+def create_vbox_x_axis():
+    global set_xaxis_label_text, set_xaxis_label_fontsize, set_xaxis_label_color, set_xlabel_order, set_hue_order
     set_xaxis_label_text = widgets.Text(value='group_IDs', placeholder='group_IDs', description='x-axis title:', layout={'width': 'auto'})
     set_xaxis_label_fontsize = widgets.IntSlider(value=12, min=8, max=40, step=1, description='fontsize:')
     set_xaxis_label_color = widgets.ColorPicker(concise=False, description='font color', value='#000000')
-    return HBox([set_xaxis_label_text, set_xaxis_label_fontsize, set_xaxis_label_color])
+    xaxis_hbox = HBox([set_xaxis_label_text, set_xaxis_label_fontsize, set_xaxis_label_color])
+    
+    set_xlabel_order = widgets.Text(value='x label order', 
+                                    placeholder='Specify the desired order of the x-axis labels with individual labels separated by a comma',
+                                    description='x-axis label order (separated by comma):', 
+                                    layout={'width': '800px', 'visibility': 'hidden'},
+                                    style={'description_width': 'initial'})
+    
+    set_hue_order = widgets.Text(value='hue order',
+                                 placeholder='Specify the desired group order with individual groups separated by a comma',
+                                 description='group order (separated by comma):',
+                                 layout={'width': '800px', 'visibility': 'hidden'},
+                                 style={'description_width': 'initial'})
+    
+    
+    
+    return VBox([xaxis_hbox, set_xlabel_order, set_hue_order])
 
 
 # 4.4.2.3 Create an HBox that allows customization of general axis features
@@ -630,7 +708,8 @@ def create_hbox_both_axes():
 
 # 4.4.3 Customize general features of the plot (like colors, size, ...)
 def create_customize_plot_features_hbox():
-    global select_color_palettes, set_marker_size, select_palette_or_individual_color, group_colors_vbox, plot_style_features_hbox
+    global select_color_palettes, set_marker_size, select_palette_or_individual_color, group_colors_vbox
+    global plot_style_features_hbox, set_fig_width, set_fig_height, set_show_legend
     select_palette_or_individual_color = widgets.RadioButtons(description = 'Please select a color code option and chose from the respective options below:', 
                                                               options=[('Use a pre-defined palette', 0), ('Define colors individually', 1)],
                                                               value=0, layout={'width': '700px', 'height': '75px'}, style={'description_width': 'initial'})
@@ -641,12 +720,19 @@ def create_customize_plot_features_hbox():
                              layout={'width': '350'},
                              style={'description_width': 'initial'})
     
+    set_show_legend = widgets.Checkbox(value=True, description='Show legend (if applicable):', style={'description_width': 'initial'})
     set_marker_size = widgets.FloatText(value=5,description='marker size (if applicable):', style={'description_width': 'initial'})
+    
+    optional_features_hbox = HBox([set_show_legend, set_marker_size])
     
     # Empty VBox which will be filled as soon as groups are determined (stats_button.click())
     group_colors_vbox = VBox([])
     
-    plot_style_features_vbox = VBox([select_palette_or_individual_color, HBox([select_color_palettes, group_colors_vbox]), set_marker_size])
+    set_fig_width = widgets.FloatSlider(value=28, min=3, max=30, description='Figure width:', style={'description_width': 'inital'})
+    set_fig_height = widgets.FloatSlider(value=16, min=3, max=30, description='Figure height:', style={'description_width': 'inital'})
+    fig_size_hbox = HBox([set_fig_width, set_fig_height])
+    
+    plot_style_features_vbox = VBox([select_palette_or_individual_color, HBox([select_color_palettes, group_colors_vbox]), fig_size_hbox, optional_features_hbox])
     return plot_style_features_vbox
 
 
@@ -698,6 +784,46 @@ def create_group_color_pickers():
         set_group_color = widgets.ColorPicker(concise=False, description = group_id, style={'description_width': 'initial'})
         group_colors_vbox.children = group_colors_vbox.children + (set_group_color, )
 
+
+# 4.5.3 Specify the group order string:
+def create_group_order_text():
+    if select_test.value == 0:
+        for group_id in l_groups:
+            if l_groups.index(group_id) == 0:
+                l_xlabel_string = group_id
+            else:
+                l_xlabel_string = l_xlabel_string + ', {}'.format(group_id)
+        set_xlabel_order.value = l_xlabel_string
+        set_xlabel_order.layout.visibility = 'visible'
+        
+    elif select_test.value == 2:
+        for session_id in l_sessions:
+            if l_sessions.index(session_id) == 0:
+                l_xlabel_string = session_id
+            else:
+                l_xlabel_string = l_xlabel_string + ', {}'.format(session_id)
+        set_xlabel_order.value = l_xlabel_string
+        set_xlabel_order.layout.visibility = 'visible'
+        
+        for group_id in l_groups:
+            if l_groups.index(group_id) == 0:
+                l_hue_string = group_id
+            else:
+                l_hue_string = l_hue_string + ', {}'.format(group_id)
+        set_hue_order.value = l_hue_string
+        set_hue_order.layout.visibility = 'visible'        
+        
+def create_ylims():
+    if df[data_col].min() < 0:
+        set_yaxis_lower_lim.value = round(df[data_col].min() + df[data_col].min()*0.1, 2)
+    else:
+        set_yaxis_lower_lim.value = round(df[data_col].min() - df[data_col].min()*0.1, 2)
+        
+    if df[data_col].max() < 0:
+        set_yaxis_upper_lim.value = round(df[data_col].max() - df[data_col].max()*0.1, 2)
+    else:
+        set_yaxis_upper_lim.value = round(df[data_col].max() + df[data_col].max()*0.1, 2)
+    
 ###################################################################    
 
     
