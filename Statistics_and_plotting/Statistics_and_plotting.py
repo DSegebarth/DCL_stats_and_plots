@@ -1,3 +1,7 @@
+### Authors:
+# Dennis Segebarth, Institute of Clinical Neurobiology, University Hospital of Wuerzburg, Germany
+# Konstantin Kobel, Institute of Clinical Neurobiology, University Hospital of Wuerzburg, Germany
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -61,9 +65,37 @@ def independent_samples():
     else:
         print('Error: The group_id column has to contain at least two different group_ids for this selection.\
         \nDid you mean to perform a one-sample test?')   
-   
+
+
+# 1.2 Data vs. fixed value:
+def one_sample():
+    global data_col, group_col, d_main, l_groups, performed_test, fixed_val_col, fixed_value
+    data_col = df.columns[0]
+    group_col = df.columns[1]
+    fixed_val_col = df.columns[2]
+    
+    d_main = {}
+    fixed_value = df[fixed_val_col].values[0]
+    l_groups = list(df[group_col].unique())
+    
+    group_id = l_groups[0]
+    d_main[group_id] = {'data': df.loc[df[group_col] == group_id, data_col].values,
+                        'normality_full': pg.normality(df.loc[df[group_col] == group_id, data_col].values),
+                        'normality_bool': pg.normality(df.loc[df[group_col] == group_id, data_col].values)['normal'][0]}
+    parametric = d_main[group_id]['normality_bool']
+    
+    d_main['summary'] = {'normality_full': pg.normality(df.loc[df[group_col] == group_id, data_col].values),
+                         'normality_bool': pg.normality(df.loc[df[group_col] == group_id, data_col].values)['normal'][0]}
+
+    if parametric == True:
+        d_main['summary']['pairwise_comparisons'] = pg.ttest(df[data_col].values, fixed_value)
+        performed_test = 'one sample t-test'
+    else:    
+        d_main['summary']['pairwise_comparisons'] = pg.wilcoxon(df[data_col].values - fixed_value, correction='auto')
+        performed_test = 'one sample wilcoxon rank-sum test' 
         
-# 1.2 Mixed-model ANOVA (contributed by Konstantin Kobel):
+        
+# 1.3 Mixed-model ANOVA:
 def mixed_model_ANOVA():
     global d_main, data_col, group_col, subject_col, session_col, l_groups, l_sessions, performed_test
     data_col = df.columns[0]
@@ -235,9 +267,34 @@ def annotate_stats_independent_samples(l_stats_to_annotate):
             # With set_distance_stars_to_brackets being limited to 5, stars will always be closer than next annotation line
             y = y+3*y_shift_annotation_line
 
+# 2.4.2 Annotate stats in one-sample tests:
+# 2.4.2.1 Annotate stats in scatter-, box-, and violinplots:
+def annotate_stats_one_sample(l_stats_to_annotate):
+    if len(l_stats_to_annotate) > 0:
+        max_total = df[data_col].max()
+        y_shift_annotation_line = max_total * distance_brackets_to_data
+        y_shift_annotation_text = y_shift_annotation_line*0.5*distance_stars_to_brackets
+        
+        # Set initial y
+        y = max_total + y_shift_annotation_line
+
+        # Add check whether group level ANOVA / Kruska-Wallis-ANOVA is significant
+        pval = d_main['summary']['pairwise_comparisons'].iloc[0, :]['p-val']
+        if pval <= 0.001:
+            stars = '***'
+        elif pval <= 0.01:
+            stars = '**'
+        elif pval <= 0.05:
+            stars = '*'
+        else: 
+            stars = 'n.s.'
+        
+        plt.text(0, y+y_shift_annotation_text, stars, ha='center', va='bottom', color='k', 
+                     fontsize=fontsize_stars, fontweight=fontsize_stars_bold)
+           
             
-# 2.4.2 Annotate stats in Mixed-model ANOVA plots:
-# 2.4.2.1 Annotate stats in Mixed-model ANOVA point plot:
+# 2.4.3 Annotate stats in Mixed-model ANOVA plots:
+# 2.4.3.1 Annotate stats in Mixed-model ANOVA point plot:
 def annotate_stats_mma_pointplot(l_stats_to_annotate):
     if len(l_stats_to_annotate) > 0:
         l_to_annotate_ordered = []
@@ -284,7 +341,7 @@ def sort_by_third(e):
     return e[3]
 
 
-# 2.4.2.2 Annotate stats in Mixed-model ANOVA violin plot:
+# 2.4.3.2 Annotate stats in Mixed-model ANOVA violin plot:
 def annotate_stats_mma_violinplot(l_stats_to_annotate):
     if len(l_stats_to_annotate) > 0:
         l_to_annotate_ordered = []
@@ -362,6 +419,8 @@ def on_stats_button_clicked(b):
         
         if select_test.value == 0: # comparison of independent samples
             select_plot.options = [('stripplot', 0), ('boxplot', 1), ('boxplot with scatterplot overlay', 2), ('violinplot', 3)]
+        elif select_test.value == 1: # one-sample test:
+            select_plot.options = [('sripplot', 0), ('boxplot', 1), ('boxplot with scatterplot overlay', 2), ('violinplot', 3), ('histogram', 4)]
         elif select_test.value == 2: # mixed-model ANOVA
             select_plot.options = [('pointplot', 0), ('boxplot', 1), ('boxplot with scatterplot overlay', 2), ('violinplot', 3)]
         else:
@@ -369,6 +428,9 @@ def on_stats_button_clicked(b):
         
         if select_test.value==0:
             independent_samples()
+            checkboxes_to_add, l_checkboxes = create_checkboxes_pairwise_comparisons()
+        elif select_test.value==1:
+            one_sample()
             checkboxes_to_add, l_checkboxes = create_checkboxes_pairwise_comparisons()
         elif select_test.value==2:
             mixed_model_ANOVA()
@@ -379,11 +441,8 @@ def on_stats_button_clicked(b):
         
         create_group_order_text()
         create_ylims()
-        
         create_group_color_pickers()
-        
-        
-        
+
         display(d_main['summary']['pairwise_comparisons'])   
 
         
@@ -420,7 +479,7 @@ def on_plotting_button_clicked(b):
         if select_test.value == 0: # independent_samples()
             if select_plot.value == 0:
                 sns.stripplot(data=df, x=group_col, y=data_col, order=l_xlabel_order, palette=color_palette, size=set_marker_size.value)
-            elif select_plot.value == 1:
+            elif select_plot.value == 1: 
                 sns.boxplot(data=df, x=group_col, y=data_col, order=l_xlabel_order, palette=color_palette)
             elif select_plot.value == 2:
                 sns.boxplot(data=df, x=group_col, y=data_col, order=l_xlabel_order, palette=color_palette, showfliers=False)
@@ -430,7 +489,26 @@ def on_plotting_button_clicked(b):
                 sns.stripplot(data=df, x=group_col, y=data_col, color='k', order=l_xlabel_order, size=set_marker_size.value)                
             else:
                 print("Function not implemented. Please go and annoy Dennis to finally do it")
-                  
+        
+        elif select_test.value == 1: # one_sample()
+            if select_plot.value == 0:
+                sns.stripplot(data=df, x=group_col, y=data_col, order=l_xlabel_order, palette=color_palette, size=set_marker_size.value)
+                plt.hlines(y=fixed_value, xmin=-0.5, xmax=0.5, color='gray', linestyle='dashed')
+            elif select_plot.value == 1: 
+                sns.boxplot(data=df, x=group_col, y=data_col, order=l_xlabel_order, palette=color_palette)
+                plt.hlines(y=fixed_value, xmin=-0.5, xmax=0.5, color='gray', linestyle='dashed')
+            elif select_plot.value == 2:
+                sns.boxplot(data=df, x=group_col, y=data_col, order=l_xlabel_order, palette=color_palette, showfliers=False)
+                sns.stripplot(data=df, x=group_col, y=data_col, color='k', order=l_xlabel_order, size=set_marker_size.value)
+                plt.hlines(y=fixed_value, xmin=-0.5, xmax=0.5, color='gray', linestyle='dashed')
+            elif select_plot.value == 3:
+                sns.violinplot(data=df, x=group_col, y=data_col, order=l_xlabel_order, palette=color_palette, cut=0)
+                sns.stripplot(data=df, x=group_col, y=data_col, color='k', order=l_xlabel_order, size=set_marker_size.value)
+                plt.hlines(y=fixed_value, xmin=-0.5, xmax=0.5, color='gray', linestyle='dashed')
+            else:
+                print("Function not implemented. Please go and annoy Dennis to finally do it")
+        
+        
         elif select_test.value == 2: # mixed_model_ANOVA()
             if select_plot.value == 0:
                 sns.pointplot(data=df, x=session_col, y=data_col, order=l_xlabel_order, hue=group_col, hue_order=l_hue_order,
@@ -454,7 +532,6 @@ def on_plotting_button_clicked(b):
             if set_show_legend.value == True:
                 if select_plot.value == 0:
                     ax.legend(loc='center left', bbox_to_anchor=(1, 0.5), frameon=False)
-                
                 elif select_plot.value in [1, 2, 3]:
                     handles, labels = ax.get_legend_handles_labels()
                     new_handles = handles[:len(l_hue_order)]
@@ -470,7 +547,14 @@ def on_plotting_button_clicked(b):
             l_stats_to_annotate = get_l_stats_to_annotate_independent_samples()
             annotate_stats_independent_samples(l_stats_to_annotate)
         
-        elif select_test.value == 2: # mixed_model_ANOVA()#
+        elif select_test.value == 1: # one_sample()
+            l_stats_to_annotate = get_l_stats_to_annotate_independent_samples()
+            if select_plot.value in [0, 1, 2, 3]:
+                annotate_stats_one_sample(l_stats_to_annotate)
+            else:
+                print("Function not implemented. Please go and annoy Dennis to finally do it") 
+        
+        elif select_test.value == 2: # mixed_model_ANOVA()
             l_stats_to_annotate = get_l_stats_to_annotate_mma()
             if select_plot.value == 0:
                 annotate_stats_mma_pointplot(l_stats_to_annotate)
@@ -501,7 +585,11 @@ def on_download_button_clicked(b):
             df_individual_group_stats = get_individual_group_stats_for_download(False)
             df_group_level_overview = get_group_level_stats_for_download()
             df_pairwise_comparisons = d_main['summary']['pairwise_comparisons'].copy()
-            
+        
+        elif select_test.value == 1:
+            df_individual_group_stats = get_individual_group_stats_for_download(False)
+            df_pairwise_comparisons = d_main['summary']['pairwise_comparisons'].copy()
+           
         elif select_test.value == 2:
             df_individual_group_stats = get_individual_group_stats_for_download(True)
             df_group_level_overview = get_group_level_stats_for_download()
@@ -509,7 +597,8 @@ def on_download_button_clicked(b):
         
         with pd.ExcelWriter('statistic_results.xlsx') as writer:  
             df_individual_group_stats.to_excel(writer, sheet_name='Individual group statistics')
-            df_group_level_overview.to_excel(writer, sheet_name='Whole-group statistics')
+            if select_test.value in [0, 2]:
+                df_group_level_overview.to_excel(writer, sheet_name='Whole-group statistics')
             df_pairwise_comparisons.to_excel(writer, sheet_name='Pairwise comparisons')                
                 
     if select_downloads.value == 1 or select_downloads.value == 2:
@@ -534,7 +623,9 @@ def create_buttons():
 # 4.2 Dropdown menus:
 def create_dropdowns():
     global select_test, select_plot, select_downloads
-    select_test = widgets.Dropdown(options=[('pairwise comparison of two or more independent samples', 0), ('Mixed_model_ANOVA', 2)], 
+    select_test = widgets.Dropdown(options=[('Pairwise comparison of two or more independent samples', 0), 
+                                            ('Comparison of one group against a fixed value (one-sample test)', 1), 
+                                            ('Mixed_model_ANOVA', 2)], 
                                    value=0, description='Please select which test you want to perform:',
                                    layout={'width': '700px'}, style={'description_width': 'initial'})
 
@@ -740,9 +831,12 @@ def create_customize_plot_features_hbox():
 # 4.5.1 Create checkboxes to select individual comparisons that shall be annotated
 # 4.5.1.1 Base-function: create and arrange checkboxes of all possible pairwise comparisons
 def create_checkboxes_pairwise_comparisons():
-    # Create a checkbox for each pairwise comparison
-    l_checkboxes_temp = [widgets.Checkbox(value=False,description='{} vs. {}'.format(group1, group2)) 
-                         for group1, group2 in list(itertools.combinations(l_groups, 2))]
+    if len(l_groups) == 1:
+        l_checkboxes_temp = [widgets.Checkbox(value=False,description='{} vs. {}'.format(l_groups[0], fixed_val_col))] 
+    else:
+        # Create a checkbox for each pairwise comparison
+        l_checkboxes_temp = [widgets.Checkbox(value=False,description='{} vs. {}'.format(group1, group2)) 
+                             for group1, group2 in list(itertools.combinations(l_groups, 2))]
     # Arrange checkboxes in a HBoxes with up to 3 checkboxes per HBox
     l_HBoxes = []
     elem = 0
@@ -795,6 +889,9 @@ def create_group_order_text():
                 l_xlabel_string = l_xlabel_string + ', {}'.format(group_id)
         set_xlabel_order.value = l_xlabel_string
         set_xlabel_order.layout.visibility = 'visible'
+    
+    elif select_test.value == 1:
+        set_xlabel_order.value = l_groups[0]
         
     elif select_test.value == 2:
         for session_id in l_sessions:
@@ -895,7 +992,7 @@ def get_individual_group_stats_for_download(include_sessions):
     l_for_index = []
     
     if include_sessions == False:
-        # for independent samples:
+        # for independent samples & one sample:
         for group_id in l_groups:
             d_individual_group_stats = calculate_individual_group_stats(d_individual_group_stats, group_id)
             l_for_index.append(group_id)
