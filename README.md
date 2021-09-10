@@ -1,3 +1,12 @@
+# This project is now continued here: [dcl_stats_n_plots](https://github.com/DSegebarth/dcl_stats_n_plots/)
+
+The content of this repository will no longer be updated.
+
+---
+
+
+_Original content:_
+
 # DCL_stats_and_plots
 
 ## An interactive widget to compute statistics and plot your data
@@ -8,7 +17,7 @@ The intended use of each tool may vary greatly from very lab- and/or analysis-sp
 The common goal for each repository, however, is to provide the tool as an interactive, userfriendly, and intuitive GUI so that the user needs little to no coding expertise.
 
 List of all repositories of the DCLwidgets series:
-- [DCL_stats_and_plots](https://github.com/DSegebarth/DCL_stats_and_plots/): A widget to compute statistics and plot the data with several options to customize the plot
+- [dcl_stats_n_plots](https://github.com/DSegebarth/dcl_stats_n_plots/): A widget to compute statistics and plot the data with several options to customize the plot
 - [DCL_to_NWB](https://github.com/DSegebarth/DCL_to_NWB/): A widget to convert datasets acquired in the DCL into the NWB file format
 - [BSc_MS](https://github.com/DSegebarth/BSc_MS/): A widget to annotate the corners of a maze within video files and save the corresponding x- and y-coordinates
 
